@@ -1,10 +1,13 @@
 import React from "react";
 import "./Auth.css";
+import AuthContext from "../context/auth-context";
 
-const { useCallback, createRef, useState } = React;
+const { useCallback, createRef, useState, useContext } = React;
 
 const Auth = (props) => {
   const [isLogin, setIsLogin] = useState(true);
+
+  const contextType = useContext(AuthContext);
 
   const emailEl = createRef();
   const passwordEl = createRef();
@@ -62,13 +65,20 @@ const Auth = (props) => {
           return res.json();
         })
         .then((resData) => {
-          console.log(resData);
+          console.log("resData", resData);
+          if (resData.data.login.token) {
+            contextType.login(
+              resData.data.login.token,
+              resData.data.login.userId,
+              resData.data.login.tokenExpiration
+            );
+          }
         })
         .catch((err) => {
           console.log(err);
         });
     },
-    [emailEl, passwordEl, isLogin]
+    [emailEl, passwordEl, isLogin, contextType]
   );
 
   return (
