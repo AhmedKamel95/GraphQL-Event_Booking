@@ -3,12 +3,16 @@ import "./Events.css";
 import Modal from "../components/Modal/Modal";
 import Backdrop from "../components/Backdrop/Backdrop";
 import AuthContext from "../context/auth-context";
+import EventList from "../components/Events/EventList";
+import Spinner from "../components/Spinner/Spinner";
 
 const { useState, useCallback, createRef, useContext, useEffect } = React;
 
 export default function EventsPage() {
   const [creating, setCreating] = useState(false);
   const [events, setEvents] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
 
   const contextType = useContext(AuthContext);
 
@@ -18,6 +22,7 @@ export default function EventsPage() {
   const descriptionElRef = createRef();
 
   const fetchEvents = useCallback(() => {
+    setIsLoading(true);
     const requestBody = {
       query: `
           query {
@@ -52,9 +57,11 @@ export default function EventsPage() {
       .then((resData) => {
         const events = resData.data.events;
         setEvents(events);
+        setIsLoading(false);
       })
       .catch((err) => {
         console.log(err);
+        setIsLoading(false);
       });
   }, []);
 
@@ -64,7 +71,8 @@ export default function EventsPage() {
 
   const modalCancelHandler = useCallback(() => {
     setCreating(false);
-  }, [setCreating]);
+    setSelectedEvent(null);
+  }, [setCreating, setSelectedEvent]);
 
   const modalConfirmHandler = useCallback(() => {
     setCreating(false);
@@ -113,35 +121,62 @@ export default function EventsPage() {
         return res.json();
       })
       .then((resData) => {
-        fetchEvents();
+        // fetchEvents();
+        setEvents((prevEvents) => {
+          const newEvent = {
+            _id: resData.data.createEvent._id,
+            title: resData.data.createEvent.title,
+            description: resData.data.createEvent.description,
+            date: resData.data.createEvent.date,
+            price: resData.data.createEvent.price,
+            creator: {
+              _id: contextType.userId,
+            },
+          };
+          const updatedEvents = [...prevEvents, newEvent];
+          return updatedEvents;
+        });
       })
       .catch((err) => {
         console.log(err);
       });
   }, [
+    contextType.userId,
     setCreating,
     dateElRef,
     descriptionElRef,
     priceElRef,
     titleElRef,
     contextType.token,
-    fetchEvents,
   ]);
 
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
 
+  const showDetailHandler = useCallback(
+    (eventId) => {
+      setSelectedEvent(() => {
+        const selectedEvent = events.find((e) => e._id === eventId);
+        return selectedEvent;
+      });
+    },
+    [setSelectedEvent, events]
+  );
+
+  const bookEventHandler = useCallback(() => {}, []);
+
   return (
     <React.Fragment>
-      {creating && <Backdrop />}
+      {(creating || selectedEvent) && <Backdrop />}
       {creating && (
         <Modal
           title="Add Event"
           canCancel
           canConfirm
-          onCacncel={modalCancelHandler}
+          onCancel={modalCancelHandler}
           onConfirm={modalConfirmHandler}
+          confirmText="Confirm"
         >
           <form>
             <div className="form-control">
@@ -163,6 +198,23 @@ export default function EventsPage() {
           </form>
         </Modal>
       )}
+      {selectedEvent && (
+        <Modal
+          title={selectedEvent.title}
+          canCancel
+          canConfirm
+          onCancel={modalCancelHandler}
+          onConfirm={bookEventHandler}
+          confirmText="Book"
+        >
+          <h1>{selectedEvent.title}</h1>
+          <h2>
+            ${selectedEvent.price} -
+            {new Date(selectedEvent.date).toLocaleDateString()}
+          </h2>
+          <p>{selectedEvent.description}</p>
+        </Modal>
+      )}
       {contextType.token && (
         <div className="events-control">
           <p>Share your own Events!</p>
@@ -171,13 +223,15 @@ export default function EventsPage() {
           </button>
         </div>
       )}
-      <ul className="events__list">
-        {events.map((event) => (
-          <li key={event._id} className="events__list-item">
-            {event.title}
-          </li>
-        ))}
-      </ul>
+      {isLoading ? (
+        <Spinner />
+      ) : (
+        <EventList
+          events={events}
+          authUserId={contextType.userId}
+          onViewDetail={showDetailHandler}
+        />
+      )}
     </React.Fragment>
   );
 }
