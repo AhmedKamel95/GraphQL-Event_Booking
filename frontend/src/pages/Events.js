@@ -6,7 +6,14 @@ import AuthContext from "../context/auth-context";
 import EventList from "../components/Events/EventList";
 import Spinner from "../components/Spinner/Spinner";
 
-const { useState, useCallback, createRef, useContext, useEffect } = React;
+const {
+  useState,
+  useCallback,
+  createRef,
+  useContext,
+  useEffect,
+  useRef,
+} = React;
 
 export default function EventsPage() {
   const [creating, setCreating] = useState(false);
@@ -14,12 +21,15 @@ export default function EventsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
 
+  let isActive = useRef(true);
   const contextType = useContext(AuthContext);
 
   const titleElRef = createRef();
   const priceElRef = createRef();
   const dateElRef = createRef();
   const descriptionElRef = createRef();
+
+  // let isActive = true;
 
   const fetchEvents = useCallback(() => {
     setIsLoading(true);
@@ -56,14 +66,18 @@ export default function EventsPage() {
       })
       .then((resData) => {
         const events = resData.data.events;
-        setEvents(events);
-        setIsLoading(false);
+        if (isActive) {
+          setEvents(events);
+          setIsLoading(false);
+        }
       })
       .catch((err) => {
         console.log(err);
-        setIsLoading(false);
+        if (isActive) {
+          setIsLoading(false);
+        }
       });
-  }, []);
+  }, [isActive]);
 
   const startCreateEventHandler = useCallback(() => {
     setCreating(true);
@@ -89,7 +103,7 @@ export default function EventsPage() {
     ) {
       return;
     }
-    const event = { title, price, date, description };
+    // const event = { title, price, date, description };
     const requestBody = {
       query: `
           mutation {
@@ -164,7 +178,50 @@ export default function EventsPage() {
     [setSelectedEvent, events]
   );
 
-  const bookEventHandler = useCallback(() => {}, []);
+  const bookEventHandler = useCallback(() => {
+    if (!contextType.token) {
+      setSelectedEvent(null);
+      return;
+    }
+    const requestBody = {
+      query: `
+          mutation {
+            bookEvent(eventId:"${selectedEvent._id}") {
+              _id
+              createdAt
+              updatedAt
+            }
+          }
+        `,
+    };
+
+    fetch("http://localhost:3500/graphql", {
+      method: "POST",
+      body: JSON.stringify(requestBody),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + contextType.token,
+      },
+    })
+      .then((res) => {
+        if (res.status !== 200 && res.status !== 201) {
+          throw new Error("Failed");
+        }
+        return res.json();
+      })
+      .then((resData) => {
+        setSelectedEvent(null);
+      })
+      .catch((err) => {
+        console.log(err);
+      });
+  }, [selectedEvent, contextType]);
+
+  useEffect(() => {
+    return () => {
+      isActive.current = false;
+    };
+  }, [isActive]);
 
   return (
     <React.Fragment>
@@ -205,7 +262,7 @@ export default function EventsPage() {
           canConfirm
           onCancel={modalCancelHandler}
           onConfirm={bookEventHandler}
-          confirmText="Book"
+          confirmText={contextType.token ? "Book" : "Confirm"}
         >
           <h1>{selectedEvent.title}</h1>
           <h2>
