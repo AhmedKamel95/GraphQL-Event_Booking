@@ -58,47 +58,53 @@ const BookingsPage = () => {
     fetchBookings();
   }, [fetchBookings]);
 
-  const deleteBookingHandler = useCallback((bookingId) => {
-    setIsLoading(true);
-    const requestBody = {
-      query: `
-          mutation {
-            cancelBooking(bookingId:"${bookingId}") {
+  const deleteBookingHandler = useCallback(
+    (bookingId) => {
+      setIsLoading(true);
+      const requestBody = {
+        query: `
+          mutation CancelBooking($id: ID!) {
+            cancelBooking(bookingId: $id) {
               _id
               title          
             }
           }
         `,
-    };
+        variables: {
+          id: bookingId,
+        },
+      };
 
-    fetch("http://localhost:3500/graphql", {
-      method: "POST",
-      body: JSON.stringify(requestBody),
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + contextType.token,
-      },
-    })
-      .then((res) => {
-        if (res.status !== 200 && res.status !== 201) {
-          throw new Error("Failed");
-        }
-        return res.json();
+      fetch("http://localhost:3500/graphql", {
+        method: "POST",
+        body: JSON.stringify(requestBody),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + contextType.token,
+        },
       })
-      .then((resData) => {
-        setBookings((prevBookings) => {
-          const updatedBookings = prevBookings.filter(
-            (booking) => booking._id !== bookingId
-          );
-          return updatedBookings;
+        .then((res) => {
+          if (res.status !== 200 && res.status !== 201) {
+            throw new Error("Failed");
+          }
+          return res.json();
+        })
+        .then((resData) => {
+          setBookings((prevBookings) => {
+            const updatedBookings = prevBookings.filter(
+              (booking) => booking._id !== bookingId
+            );
+            return updatedBookings;
+          });
+          setIsLoading(false);
+        })
+        .catch((err) => {
+          console.log(err);
+          setIsLoading(false);
         });
-        setIsLoading(false);
-      })
-      .catch((err) => {
-        console.log(err);
-        setIsLoading(false);
-      });
-  }, []);
+    },
+    [contextType.token]
+  );
 
   return (
     <React.Fragment>
